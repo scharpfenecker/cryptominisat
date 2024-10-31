@@ -46,6 +46,7 @@ typedef struct {
     SATSolver* cmsat;
     std::vector<Lit> tmp_cl_lits;
 
+    int seed;
     int verbose;
     double time_limit;
     long confl_limit;
@@ -53,14 +54,16 @@ typedef struct {
 typedef void (*sighandler_t)(int);
 
 static const char solver_create_docstring[] = \
-"Solver(verbose=0, time_limit=max_numeric_limits, confl_limit=max_numeric_limits, threads=1)\n\
+"Solver(seed=0, verbose=0, time_limit=max_numeric_limits, confl_limit=max_numeric_limits, threads=1)\n\
 Create Solver object.\n\
 \n\
+:param seed: Random seed.\n\
 :param verbose: Verbosity level: 0: nothing printed; 15: very verbose.\n\
 :param time_limit: Propagation limit: abort after this many seconds has elapsed.\n\
 :param confl_limit: Propagation limit: abort after this many conflicts.\n\
     Default: never abort.\n\
 :param threads: Number of threads to use.\n\
+:type seed: <int>\n\
 :type verbose: <int>\n\
 :type time_limit: <double>\n\
 :type confl_limit: <long>\n\
@@ -68,20 +71,25 @@ Create Solver object.\n\
 
 static void setup_solver(Solver *self, PyObject *args, PyObject *kwds)
 {
-    static char const* kwlist[] = {"verbose", "time_limit", "confl_limit", "threads", NULL};
+    static char const* kwlist[] = {"seed", "verbose", "time_limit", "confl_limit", "threads", NULL};
 
     int num_threads = 1;
     self->cmsat = NULL;
+    self->seed = 0;
     self->verbose = 0;
     self->time_limit = std::numeric_limits<double>::max();
     self->confl_limit = std::numeric_limits<long>::max();
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|idli",  const_cast<char**>(kwlist),
-        &self->verbose, &self->time_limit, &self->confl_limit, &num_threads))
+    if (!PyArg_ParseTupleAndKeywords(args, kwds, "|iidli",  const_cast<char**>(kwlist),
+        &self->seed, &self->verbose, &self->time_limit, &self->confl_limit, &num_threads))
     {
         return;
     }
 
+    if (self->seed < 0) {
+        PyErr_SetString(PyExc_ValueError, "seed must be at least 0");
+        return;
+    }
     if (self->verbose < 0) {
         PyErr_SetString(PyExc_ValueError, "verbosity must be at least 0");
         return;
@@ -100,6 +108,7 @@ static void setup_solver(Solver *self, PyObject *args, PyObject *kwds)
     }
 
     self->cmsat = new SATSolver;
+    self->cmsat->set_seed(self->seed);
     self->cmsat->set_verbosity(self->verbose);
     self->cmsat->set_max_time(self->time_limit);
     self->cmsat->set_max_confl(self->confl_limit);
